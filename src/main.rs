@@ -66,11 +66,24 @@ impl Colors {
 fn main() {
     let mut input = String::new();
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let mut stderr = StandardStream::stderr(ColorChoice::Always);
     let colors = Colors::defaults();
     loop {
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                prettier(&mut stdout, &colors, &input).unwrap();
+                match prettier(&mut stdout, &colors, &input) {
+                    Ok(_) => {},
+                    Err(err) => {
+                        let show_errors_opt = std::env::var("ZAP_PRETTIER_SHOW_ERRORS").ok();
+                        if let Some(show_errors) = show_errors_opt {
+                            if show_errors.as_str() == "1" {
+                                stderr.set_color(&colors.error).unwrap();
+                                writeln!(&mut stderr, "Error printing \"{}\": {:?}", input, err).unwrap();
+                            }
+                        }
+                        writeln!(&mut stdout, "{}", input).unwrap();
+                    },
+                };
                 input.clear()
             }
             Err(error) => println!("error: {}", error),
@@ -88,7 +101,7 @@ struct Log {
 
 
 fn prettier(mut stdout: &mut termcolor::StandardStream, colors: &Colors, line: &str) -> io::Result<()> {
-    let log = serde_json::from_str::<Log>(&line).unwrap();
+    let log = serde_json::from_str::<Log>(&line).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
     match log.level.as_str() {
         "error" => stdout.set_color(&colors.error)?,
@@ -119,7 +132,7 @@ fn prettier(mut stdout: &mut termcolor::StandardStream, colors: &Colors, line: &
         stdout.set_color(&colors.value)?;
         write!(&mut stdout, "{}", val.to_string())?;
     }
-    stdout.set_color(&colors.reset)?;
+    stdout.reset()?;
     writeln!(&mut stdout, "")?;
 
     Ok(())
