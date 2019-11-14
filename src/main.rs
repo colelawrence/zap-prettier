@@ -15,6 +15,7 @@ struct Colors {
     key: ColorSpec,
     value: ColorSpec,
     punc: ColorSpec,
+    muted: ColorSpec,
 }
 
 impl Colors {
@@ -33,8 +34,10 @@ impl Colors {
         let mut warn = ColorSpec::new();
         warn.set_fg(Some(Color::Red)).set_bold(true);
 
+        // Referencing colors from https://jonasjacek.github.io/colors/
+
         let mut message = ColorSpec::new();
-        message.set_fg(Some(Color::Cyan));
+        message.set_fg(Some(Color::Ansi256(255u8)));
 
         let mut key = ColorSpec::new();
         key.set_fg(Some(Color::Ansi256(249u8))).set_underline(true);
@@ -44,6 +47,9 @@ impl Colors {
 
         let mut punc = ColorSpec::new();
         punc.set_fg(Some(Color::Ansi256(102u8)));
+
+        let mut muted = ColorSpec::new();
+        muted.set_fg(Some(Color::Ansi256(242u8)));
 
         return Colors {
             error,
@@ -55,6 +61,7 @@ impl Colors {
             key,
             value,
             punc,
+            muted,
         };
     }
 }
@@ -78,7 +85,9 @@ fn main() {
                                     .unwrap();
                             }
                         }
-                        writeln!(&mut stdout, "{}", input).unwrap();
+                        stderr.set_color(&colors.muted).unwrap();
+                        write!(&mut stdout, "{}", input).unwrap();
+                        stderr.reset().unwrap();
                     }
                 };
                 input.clear()
@@ -106,7 +115,7 @@ fn prettier(
 
     match log.level.as_str() {
         "error" => stdout.set_color(&colors.error)?,
-        "warning" => stdout.set_color(&colors.warn)?,
+        "warn" => stdout.set_color(&colors.warn)?,
         "info" => stdout.set_color(&colors.info)?,
         "debug" => stdout.set_color(&colors.debug)?,
         "log" => stdout.set_color(&colors.log)?,
@@ -128,7 +137,7 @@ fn prettier(
         stdout.set_color(&colors.key)?;
         write!(&mut stdout, "{}", key)?;
         stdout.set_color(&colors.punc)?;
-        write!(&mut stdout, "=")?;
+        write!(&mut stdout, ":")?;
         stdout.set_color(&colors.value)?;
         write!(&mut stdout, "{}", val.to_string())?;
     }
