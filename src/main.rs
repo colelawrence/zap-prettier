@@ -1,9 +1,9 @@
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io::Write;
 use std::io;
+use std::io::Write;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 struct Colors {
     error: ColorSpec,
@@ -15,7 +15,6 @@ struct Colors {
     key: ColorSpec,
     value: ColorSpec,
     punc: ColorSpec,
-    reset: ColorSpec,
 }
 
 impl Colors {
@@ -46,8 +45,6 @@ impl Colors {
         let mut punc = ColorSpec::new();
         punc.set_fg(Some(Color::Ansi256(102u8)));
 
-        let reset = ColorSpec::new();
-
         return Colors {
             error,
             warn,
@@ -58,8 +55,7 @@ impl Colors {
             key,
             value,
             punc,
-            reset,
-        }
+        };
     }
 }
 
@@ -72,17 +68,18 @@ fn main() {
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
                 match prettier(&mut stdout, &colors, &input) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => {
                         let show_errors_opt = std::env::var("ZAP_PRETTIER_SHOW_ERRORS").ok();
                         if let Some(show_errors) = show_errors_opt {
                             if show_errors.as_str() == "1" {
                                 stderr.set_color(&colors.error).unwrap();
-                                writeln!(&mut stderr, "Error printing \"{}\": {:?}", input, err).unwrap();
+                                writeln!(&mut stderr, "Error printing \"{}\": {:?}", input, err)
+                                    .unwrap();
                             }
                         }
                         writeln!(&mut stdout, "{}", input).unwrap();
-                    },
+                    }
                 };
                 input.clear()
             }
@@ -99,9 +96,13 @@ struct Log {
     rest: HashMap<String, Value>,
 }
 
-
-fn prettier(mut stdout: &mut termcolor::StandardStream, colors: &Colors, line: &str) -> io::Result<()> {
-    let log = serde_json::from_str::<Log>(&line).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+fn prettier(
+    mut stdout: &mut termcolor::StandardStream,
+    colors: &Colors,
+    line: &str,
+) -> io::Result<()> {
+    let log = serde_json::from_str::<Log>(&line)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
     match log.level.as_str() {
         "error" => stdout.set_color(&colors.error)?,
@@ -115,7 +116,6 @@ fn prettier(mut stdout: &mut termcolor::StandardStream, colors: &Colors, line: &
 
     stdout.set_color(&colors.message)?;
     write!(&mut stdout, "{}\t", log.message)?;
-    
     let mut first = true;
     for (key, val) in log.rest.iter() {
         if first {
