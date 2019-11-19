@@ -1,0 +1,6 @@
+echo '{"level":"info","message":"Info message for you"}'
+echo '{"level":"debug","message":"Debug message for you"}'
+echo '{"level":"error","message":"Error message for you"}'
+echo '{"level":"warn","message":"Warning message for you"}'
+echo '{"level":"log","message":"Log message for you","additionalInfo":"I like strawberries"}'
+echo 'Success'

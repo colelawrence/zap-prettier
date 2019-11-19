@@ -1,11 +1,12 @@
-use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
 use std::io;
 use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
+mod zap_parser;
+mod go_test_parser;
+
 struct Colors {
+    logger: ColorSpec,
     error: ColorSpec,
     warn: ColorSpec,
     log: ColorSpec,
@@ -20,6 +21,9 @@ struct Colors {
 
 impl Colors {
     fn defaults() -> Colors {
+        let mut logger = ColorSpec::new();
+        logger.set_fg(Some(Color::Ansi256(32u8)));
+
         let mut info = ColorSpec::new();
         info.set_fg(Some(Color::Blue));
 
@@ -37,10 +41,10 @@ impl Colors {
         // Referencing colors from https://jonasjacek.github.io/colors/
 
         let mut message = ColorSpec::new();
-        message.set_fg(Some(Color::Ansi256(255u8)));
+        message.set_fg(Some(Color::Ansi256(252u8)));
 
         let mut key = ColorSpec::new();
-        key.set_fg(Some(Color::Ansi256(249u8))).set_underline(true);
+        key.set_fg(Some(Color::Ansi256(249u8)));
 
         let mut value = ColorSpec::new();
         value.set_fg(Some(Color::Ansi256(122u8)));
@@ -52,6 +56,7 @@ impl Colors {
         muted.set_fg(Some(Color::Ansi256(242u8)));
 
         return Colors {
+            logger,
             error,
             warn,
             log,
@@ -66,15 +71,23 @@ impl Colors {
     }
 }
 
-fn main() {
+trait LogParser {
+    fn add(&mut self, stdout: &mut termcolor::StandardStream, colors: &Colors, line: &str) -> io::Result<()>;
+}
+
+fn main() -> Result<(), ()> {
     let mut input = String::new();
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
     let mut stderr = StandardStream::stderr(ColorChoice::Always);
     let colors = Colors::defaults();
+    let stdin = io::stdin();
+    let mut zap_parser = zap_parser::ZapParser::new();
+    let mut go_test_parser = go_test_parser::GoTestParser::new();
     loop {
-        match io::stdin().read_line(&mut input) {
-            Ok(_) => {
-                match prettier(&mut stdout, &colors, &input) {
+        match stdin.read_line(&mut input) {
+            Ok(0) => return Ok(()),
+            Ok(_number_of_bytes_read) => {
+                match zap_parser.add(&mut stdout, &colors, &input) {
                     Ok(_) => {}
                     Err(err) => {
                         let show_errors_opt = std::env::var("ZAP_PRETTIER_SHOW_ERRORS").ok();
@@ -82,67 +95,22 @@ fn main() {
                             if show_errors.as_str() == "1" {
                                 stderr.set_color(&colors.error).unwrap();
                                 writeln!(&mut stderr, "Error printing \"{}\": {:?}", input, err)
-                                    .unwrap();
+                                .unwrap();
                             }
                         }
-                        stderr.set_color(&colors.muted).unwrap();
-                        write!(&mut stdout, "{}", input).unwrap();
-                        stderr.reset().unwrap();
+                        match go_test_parser.add(&mut stdout, &colors, &input) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                stderr.set_color(&colors.muted).unwrap();
+                                write!(&mut stdout, "{}", input).unwrap();
+                                stderr.reset().unwrap();
+                            }
+                        }
                     }
                 };
                 input.clear()
             }
-            Err(error) => println!("error: {}", error),
+            Err(error) => eprintln!("error: {}", error),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Log {
-    level: String,
-    message: String,
-    #[serde(flatten)]
-    rest: HashMap<String, Value>,
-}
-
-fn prettier(
-    mut stdout: &mut termcolor::StandardStream,
-    colors: &Colors,
-    line: &str,
-) -> io::Result<()> {
-    let log = serde_json::from_str::<Log>(&line)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-
-    match log.level.as_str() {
-        "error" => stdout.set_color(&colors.error)?,
-        "warn" => stdout.set_color(&colors.warn)?,
-        "info" => stdout.set_color(&colors.info)?,
-        "debug" => stdout.set_color(&colors.debug)?,
-        "log" => stdout.set_color(&colors.log)?,
-        _ => stdout.reset()?,
-    }
-    write!(&mut stdout, "{}\t", log.level)?;
-
-    stdout.set_color(&colors.message)?;
-    write!(&mut stdout, "{}\t", log.message)?;
-    let mut first = true;
-    for (key, val) in log.rest.iter() {
-        if first {
-            first = false;
-        } else {
-            stdout.set_color(&colors.punc)?;
-            write!(&mut stdout, ", ")?;
-        }
-
-        stdout.set_color(&colors.key)?;
-        write!(&mut stdout, "{}", key)?;
-        stdout.set_color(&colors.punc)?;
-        write!(&mut stdout, ":")?;
-        stdout.set_color(&colors.value)?;
-        write!(&mut stdout, "{}", val.to_string())?;
-    }
-    stdout.reset()?;
-    writeln!(&mut stdout, "")?;
-
-    Ok(())
 }
