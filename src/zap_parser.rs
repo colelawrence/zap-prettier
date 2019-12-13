@@ -12,6 +12,8 @@ struct Log {
     level: String,
     message: String,
     logger: Option<String>,
+    rayID: Option<String>,
+    stacktrace: Option<String>,
     #[serde(flatten)]
     rest: HashMap<String, Value>,
 }
@@ -34,6 +36,15 @@ impl LogParser for ZapParser {
         let log = serde_json::from_str::<Log>(&line)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         
+        if let Some(ray_id) = log.rayID {
+            stdout.set_color(&colors.muted)?;
+            write!(&mut stdout, "{}", &ray_id[0..7])?;
+            stdout.set_color(&colors.punc)?;
+            write!(&mut stdout, ": ")?;
+        } else {
+            write!(&mut stdout, "missing: ")?;
+        }
+    
         if let Some(logger_name) = log.logger {
             stdout.set_color(&colors.logger)?;
             write!(&mut stdout, "{}", logger_name)?;
@@ -70,6 +81,10 @@ impl LogParser for ZapParser {
             write!(&mut stdout, "{}", val.to_string())?;
         }
         stdout.reset()?;
+        if let Some(stacktrace) = log.stacktrace {
+            writeln!(&mut stdout, "\n{}", stacktrace)?;
+        }
+
         writeln!(&mut stdout, "")?;
     
         Ok(())
