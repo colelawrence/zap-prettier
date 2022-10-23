@@ -3,7 +3,8 @@ name = "zap-prettier"
 version = "0.1.0"
 authors = ["Cole Lawrence <cole@colelawrence.com>"]
 edition = "2018"
-
+license = "MIT OR Apache-2.0"
+description = "CLI pipe uber/zap golang logs (JSON) to pretty terminal colors"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
