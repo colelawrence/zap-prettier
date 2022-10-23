@@ -10,9 +10,13 @@ use termcolor::{WriteColor};
 #[derive(Serialize, Deserialize, Debug)]
 struct Log {
     level: String,
+    #[serde(alias = "msg")]
     message: String,
+    #[serde(alias = "service")]
     logger: Option<String>,
-    rayID: Option<String>,
+    component: Option<String>,
+    #[serde(rename = "rayID")]
+    ray_id: Option<String>,
     stacktrace: Option<String>,
     #[serde(flatten)]
     rest: HashMap<String, Value>,
@@ -36,7 +40,7 @@ impl LogParser for ZapParser {
         let log = serde_json::from_str::<Log>(&line)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         
-        if let Some(ray_id) = log.rayID {
+        if let Some(ray_id) = log.ray_id {
             stdout.set_color(&colors.muted)?;
             write!(&mut stdout, "{}", &ray_id[0..7])?;
             stdout.set_color(&colors.punc)?;
@@ -48,10 +52,18 @@ impl LogParser for ZapParser {
         if let Some(logger_name) = log.logger {
             stdout.set_color(&colors.logger)?;
             write!(&mut stdout, "{}", logger_name)?;
+            if log.component.is_none() {
+                stdout.set_color(&colors.punc)?;
+                write!(&mut stdout, ":\t")?;
+            }
+        }
+        if let Some(component_name) = log.component {
+            stdout.set_color(&colors.logger)?;
+            write!(&mut stdout, "({})", component_name)?;
             stdout.set_color(&colors.punc)?;
             write!(&mut stdout, ":\t")?;
         }
-    
+
         match log.level.as_str() {
             "error" => stdout.set_color(&colors.error)?,
             "warn" => stdout.set_color(&colors.warn)?,
